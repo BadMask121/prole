@@ -1,0 +1,42 @@
+/* HUD: a transparent always-on-top window under the menu bar. The card sits
+   at the top; the space below it is room for the shadow. */
+body.hud {
+  height: 100vh;
+  background: transparent;
+  overflow: hidden;
+}
+
+#slot {
+  display: grid;
+  justify-items: center;
+  padding: 8px 10px 0;
+}
+
+/* Cards stack in one grid cell, so a replacement crossfades in place. */
+#slot > .toast {
+  grid-area: 1 / 1;
+  width: 400px;
+  background: rgba(24, 26, 32, 0.96);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.5),
+    0 2px 6px rgba(0, 0, 0, 0.35);
+
+  @starting-style {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.97);
+  }
+}
+
+#slot > .toast[data-state="closing"] {
+  transform: translateY(-6px) scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #slot > .toast,
+  #slot > .toast[data-state="closing"] {
+    transform: none;
+    @starting-style {
+      transform: none;
+    }
+  }
+}
