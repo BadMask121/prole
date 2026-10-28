@@ -8,13 +8,15 @@
 # The app is ad-hoc signed (tauri.conf.json -> bundle.macOS.signingIdentity "-"),
 # so users still do a one-time right-click -> Open; that's documented on the site.
 #
-# Why the app is staged before packaging: when the repo lives under an
-# iCloud-managed folder (~/Desktop, ~/Documents), the File Provider tags the
-# built Prole.app with com.apple.FinderInfo. Strict signature verification
-# rejects that ("resource fork, Finder information, or similar detritus not
-# allowed"), and clearing it in place doesn't stick. So the .app is copied
-# without extended attributes to a temp dir, re-signed and verified there, and
-# the DMG is made from that copy with hdiutil.
+# Why the build happens outside the repo: when the repo lives under an
+# iCloud-managed folder (~/Desktop, ~/Documents), the File Provider tags a
+# freshly built Prole.app with com.apple.FinderInfo a moment after it appears.
+# codesign rejects that ("resource fork, Finder information, or similar
+# detritus not allowed") — when the tag lands before Tauri signs, the build
+# fails; when it lands after, the shipped app fails strict verification. So
+# cargo builds into PROLE_BUILD_DIR (a cache dir iCloud doesn't manage), and
+# the .app is still copied without extended attributes, re-signed and
+# verified before the DMG is made from that copy with hdiutil.
 #
 # Usage:
 #   bash scripts/release.sh               # build, verify, upload, check the live URL
@@ -29,6 +31,7 @@
 #   PROLE_URL        public URL        (default: https://prole.jeffrey.build/download/Prole.dmg)
 #   PROLE_TARGET     rust target triple or "host"
 #                                      (default: universal-apple-darwin)
+#   PROLE_BUILD_DIR  cargo target dir  (default: ~/Library/Caches/prole-release/target)
 
 set -euo pipefail
 
@@ -37,6 +40,7 @@ PROLE_REMOTE_DIR="${PROLE_REMOTE_DIR:-/data/prole-releases}"
 PROLE_ARCHIVE_DIR="${PROLE_ARCHIVE_DIR:-/data/prole-releases-archive}"
 PROLE_URL="${PROLE_URL:-https://prole.jeffrey.build/download/Prole.dmg}"
 PROLE_TARGET="${PROLE_TARGET:-universal-apple-darwin}"
+PROLE_BUILD_DIR="${PROLE_BUILD_DIR:-$HOME/Library/Caches/prole-release/target}"
 REMOTE_NAME="Prole.dmg"   # stable filename -> stable /download/Prole.dmg URL
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -59,14 +63,14 @@ fail() { echo "[x] $*" >&2; exit 1; }
 # Where Tauri drops the .app depends on whether we cross-compile to a triple.
 if [ "$PROLE_TARGET" = "host" ]; then
   BUILD_ARGS=(--bundles app)
-  APP_SRC="$ROOT/src-tauri/target/release/bundle/macos/Prole.app"
+  APP_SRC="$PROLE_BUILD_DIR/release/bundle/macos/Prole.app"
 else
   BUILD_ARGS=(--target "$PROLE_TARGET" --bundles app)
-  APP_SRC="$ROOT/src-tauri/target/$PROLE_TARGET/release/bundle/macos/Prole.app"
+  APP_SRC="$PROLE_BUILD_DIR/$PROLE_TARGET/release/bundle/macos/Prole.app"
 fi
 VERSION="$(node -p "require('./src-tauri/tauri.conf.json').version")"
 COMMIT="$(git rev-parse --short HEAD)"
-OUT_DIR="$ROOT/src-tauri/target/release-dmg"
+OUT_DIR="$PROLE_BUILD_DIR/release-dmg"
 DMG_NAME="Prole_${VERSION}_${PROLE_TARGET}.dmg"
 
 echo "Prole release"
@@ -98,8 +102,10 @@ if [ "$PROLE_TARGET" = "universal-apple-darwin" ]; then
   rustup target add aarch64-apple-darwin x86_64-apple-darwin >/dev/null
 fi
 
-echo "-> Building (this compiles release; universal builds both arches)"
-pnpm tauri build "${BUILD_ARGS[@]}"
+echo "-> Building in $PROLE_BUILD_DIR (universal builds both arches; first run is a full compile)"
+mkdir -p "$PROLE_BUILD_DIR"
+rm -rf "$APP_SRC" # never package a stale bundle from an earlier build
+CARGO_TARGET_DIR="$PROLE_BUILD_DIR" pnpm tauri build "${BUILD_ARGS[@]}"
 [ -d "$APP_SRC" ] || fail "No Prole.app at $APP_SRC after build."
 
 # ── Stage, re-sign, verify ────────────────────────────────────────────
