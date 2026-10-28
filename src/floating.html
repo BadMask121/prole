@@ -1,22 +1,24 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./floating.css" />
   </head>
   <body class="floating">
-    <div id="bar">
-      <div id="grip" title="Drag to move" aria-label="Drag to move">
-        <svg viewBox="0 0 24 24">
-          <circle cx="9" cy="6" r="1.4" /><circle cx="9" cy="12" r="1.4" /><circle cx="9" cy="18" r="1.4" />
-          <circle cx="15" cy="6" r="1.4" /><circle cx="15" cy="12" r="1.4" /><circle cx="15" cy="18" r="1.4" />
+    <div id="pill">
+      <div id="grip" title="Drag to move · Double-click to open Prole">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="9" cy="6.5" r="1.5" /><circle cx="9" cy="12" r="1.5" /><circle cx="9" cy="17.5" r="1.5" />
+          <circle cx="15" cy="6.5" r="1.5" /><circle cx="15" cy="12" r="1.5" /><circle cx="15" cy="17.5" r="1.5" />
         </svg>
       </div>
-      <button id="snap" title="Capture (⌘⇧A)" aria-label="Capture">
-        <svg viewBox="0 0 24 24">
-          <path d="M4 9V6a2 2 0 0 1 2-2h3M15 4h3a2 2 0 0 1 2 2v3M20 15v3a2 2 0 0 1-2 2h-3M9 20H6a2 2 0 0 1-2-2v-3" />
-          <circle cx="12" cy="12" r="2.5" />
+      <button id="snap" title="Capture a region">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 9V6.5A2.5 2.5 0 0 1 6.5 4H9M15 4h2.5A2.5 2.5 0 0 1 20 6.5V9M20 15v2.5a2.5 2.5 0 0 1-2.5 2.5H15M9 20H6.5A2.5 2.5 0 0 1 4 17.5V15" />
+          <circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none" />
         </svg>
+        <span>Capture</span>
       </button>
     </div>
     <script type="module" src="./floating.ts"></script>

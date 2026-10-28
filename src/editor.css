@@ -1,0 +1,395 @@
+body.editor {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+/* ── Toolbar (doubles as the title bar; traffic lights sit at left) ── */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 52px;
+  flex: none;
+  padding: 0 12px 0 88px;
+  background: var(--surface);
+  box-shadow: inset 0 -1px 0 var(--border);
+}
+
+.tool-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+
+.divider {
+  width: 1px;
+  height: 20px;
+  flex: none;
+  background: var(--border-strong);
+}
+
+.segmented {
+  position: relative;
+  display: flex;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.segmented button {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-dim);
+  transition:
+    color 150ms ease,
+    transform var(--press) var(--ease-out);
+}
+
+.segmented button[aria-checked="true"] {
+  color: var(--text);
+}
+
+.segmented button:active {
+  transform: scale(0.94);
+}
+
+/* One indicator that slides between tools instead of each button
+   toggling its own background. */
+.seg-indicator {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 32px;
+  height: 28px;
+  border-radius: 7px;
+  background: var(--surface-3);
+  box-shadow:
+    inset 0 0 0 1px var(--border-strong),
+    0 1px 2px rgba(0, 0, 0, 0.35);
+  transition: transform 220ms var(--ease-out);
+}
+
+.swatches {
+  display: flex;
+  gap: 6px;
+}
+
+.swatch {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--swatch);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
+  transition: transform var(--press) var(--ease-out);
+}
+
+/* Selection ring sits outside the dot, scaling in from just under full size. */
+.swatch::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--swatch);
+  opacity: 0;
+  transform: scale(0.8);
+  transition:
+    opacity 160ms ease,
+    transform 200ms var(--ease-out);
+}
+
+.swatch[aria-checked="true"]::after {
+  opacity: 0.9;
+  transform: scale(1);
+}
+
+.swatch:active {
+  transform: scale(0.9);
+}
+
+.text-size {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.text-size:not([hidden]) {
+  animation: fade-in 180ms var(--ease-out);
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+}
+
+.text-size .divider {
+  margin-right: 6px;
+}
+
+.size-input {
+  width: 48px;
+  height: 28px;
+  text-align: center;
+  color: var(--text);
+  background: var(--bg);
+  border: 0;
+  border-radius: 7px;
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.size-input::-webkit-inner-spin-button,
+.size-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.size-input:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.history {
+  display: flex;
+  gap: 2px;
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  transition:
+    color 150ms ease,
+    background-color 150ms ease,
+    opacity 150ms ease,
+    transform var(--press) var(--ease-out);
+}
+
+.icon-btn:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+.icon-btn:disabled {
+  opacity: 0.35;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .segmented button:hover {
+    color: var(--text);
+  }
+  .icon-btn:hover:not(:disabled) {
+    color: var(--text);
+    background: var(--surface-3);
+  }
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+/* Copy: the label morphs to "Copied". Both faces share one grid cell and
+   crossfade with a little blur, which reads as one button changing state
+   rather than two labels swapping. */
+.copy {
+  display: inline-grid;
+  min-width: 92px;
+}
+
+.copy-face {
+  grid-area: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition:
+    opacity 180ms ease,
+    filter 180ms ease,
+    transform 220ms var(--ease-out);
+}
+
+.copy-face svg.icon {
+  width: 15px;
+  height: 15px;
+}
+
+.copy[data-state="idle"] [data-face="done"],
+.copy[data-state="busy"] [data-face="done"],
+.copy[data-state="done"] [data-face="idle"] {
+  opacity: 0;
+  filter: blur(2px);
+  transform: scale(0.9);
+}
+
+.copy[data-state="busy"] [data-face="idle"] {
+  opacity: 0.6;
+}
+
+/* ── Stage ─────────────────────────────────────────────────────── */
+#stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.045) 1px, transparent 0) 0 0 / 18px 18px,
+    var(--bg);
+}
+
+#canvas {
+  border-radius: 6px;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 18px 50px rgba(0, 0, 0, 0.55),
+    0 4px 12px rgba(0, 0, 0, 0.35);
+  cursor: crosshair;
+  touch-action: none;
+}
+
+#canvas[data-tool="text"] {
+  cursor: text;
+}
+
+#stage:not([data-state="ready"]) #canvas {
+  visibility: hidden;
+}
+
+.stage-msg {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+#stage:not([data-state="ready"]) .stage-msg {
+  display: flex;
+}
+
+.stage-msg h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.stage-msg p {
+  max-width: 380px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--text-dim);
+  animation: spin 600ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Inline text annotation, placed over the canvas at the click point. */
+.text-input {
+  position: fixed;
+  z-index: 10;
+  margin: -3px 0 0 -4px;
+  padding: 1px 3px;
+  min-width: 48px;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 600;
+  line-height: 1.1;
+  background: rgba(10, 11, 14, 0.55);
+  border: 1px dashed currentColor;
+  border-radius: 4px;
+  outline: none;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* ── Status bar ───────────────────────────────────────────────── */
+.statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 30px;
+  flex: none;
+  padding: 0 14px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  background: var(--surface);
+  box-shadow: inset 0 1px 0 var(--border);
+  font-variant-numeric: tabular-nums;
+}
+
+.hints {
+  display: flex;
+  gap: 14px;
+}
+
+.hints > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.statusbar .kbd {
+  min-width: 18px;
+  height: 17px;
+  font-size: 10.5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seg-indicator,
+  .copy-face {
+    transition-property: opacity, filter;
+  }
+  .text-size:not([hidden]) {
+    animation: none;
+  }
+  .segmented button:active,
+  .swatch:active,
+  .icon-btn:active:not(:disabled) {
+    transform: none;
+  }
+}

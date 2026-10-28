@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Prole</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./home.css" />
+  </head>
+  <body class="home intro">
+    <div class="shell" id="shell">
+      <header class="titlebar" data-tauri-drag-region></header>
+
+      <section class="hero rise" data-tauri-drag-region>
+        <div class="mark" aria-hidden="true">
+          <svg class="icon" viewBox="0 0 24 24">
+            <path d="M4 9V6.5A2.5 2.5 0 0 1 6.5 4H9M15 4h2.5A2.5 2.5 0 0 1 20 6.5V9M20 15v2.5a2.5 2.5 0 0 1-2.5 2.5H15M9 20H6.5A2.5 2.5 0 0 1 4 17.5V15" />
+            <circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none" />
+          </svg>
+        </div>
+        <div>
+          <h1>Prole</h1>
+          <p>Snip part of your screen, mark it up, paste it anywhere.</p>
+        </div>
+      </section>
+
+      <button class="cta rise" id="capture">
+        <span class="cta-icon" aria-hidden="true">
+          <svg class="icon" viewBox="0 0 24 24">
+            <path d="M4 9V6.5A2.5 2.5 0 0 1 6.5 4H9M15 4h2.5A2.5 2.5 0 0 1 20 6.5V9M20 15v2.5a2.5 2.5 0 0 1-2.5 2.5H15M9 20H6.5A2.5 2.5 0 0 1 4 17.5V15" />
+            <path d="M12 9v6M9 12h6" />
+          </svg>
+        </span>
+        <span class="cta-title">Capture a region</span>
+        <span class="keys" id="ctaKeys" aria-label="Shortcut"></span>
+      </button>
+
+      <section class="card perm rise" id="perm" data-state="loading" aria-live="polite">
+        <div class="perm-head">
+          <span class="dot" aria-hidden="true"></span>
+          <div class="row-text">
+            <span class="row-title" id="permTitle">Screen Recording</span>
+            <span class="row-hint" id="permHint">Checking…</span>
+          </div>
+        </div>
+        <ol class="steps" id="permSteps" hidden>
+          <li>
+            <span class="step-n">1</span>
+            <span class="step-text">Open Screen Recording settings</span>
+            <button class="btn btn-primary btn-sm" id="openSettings">Open</button>
+          </li>
+          <li>
+            <span class="step-n">2</span>
+            <span class="step-text">Switch on <b>Prole</b> in the list</span>
+          </li>
+          <li>
+            <span class="step-n">3</span>
+            <span class="step-text">Restart Prole so macOS applies it</span>
+            <button class="btn btn-sm" id="restart">Restart</button>
+          </li>
+        </ol>
+      </section>
+
+      <section class="card rise">
+        <label class="row">
+          <span class="row-text">
+            <span class="row-title">Floating button</span>
+            <span class="row-hint">A capture button that floats over every app</span>
+          </span>
+          <input type="checkbox" class="switch" id="floating_enabled" />
+        </label>
+        <div class="row">
+          <span class="row-text">
+            <span class="row-title">Capture shortcut</span>
+            <span class="row-hint" id="hotkeyHint">Works from any app</span>
+          </span>
+          <button class="shortcut" id="hotkey" aria-label="Change the capture shortcut"></button>
+        </div>
+        <label class="row">
+          <span class="row-text">
+            <span class="row-title">Launch at login</span>
+            <span class="row-hint">Start quietly in the menu bar</span>
+          </span>
+          <input type="checkbox" class="switch" id="launch_at_login" />
+        </label>
+      </section>
+
+      <footer class="foot rise">
+        <span id="version">Also in your menu bar</span>
+        <span class="foot-links">
+          <button class="btn btn-link" id="openLog">View log</button>
+          <span aria-hidden="true">·</span>
+          <button class="btn btn-link" id="quit">Quit Prole</button>
+        </span>
+      </footer>
+    </div>
+    <script type="module" src="./home.ts"></script>
+  </body>
+</html>
