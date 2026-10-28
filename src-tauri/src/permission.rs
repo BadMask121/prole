@@ -29,6 +29,23 @@ pub fn request_screen_recording() -> bool {
     true
 }
 
+/// Forgets Prole's Screen Recording entry. macOS keys the grant to the code
+/// signature, so after an update an ad-hoc build can show as "on" in Settings
+/// while the new binary is still refused. Clearing the entry lets the next
+/// request create one that matches this build.
+pub fn reset_screen_recording(bundle_id: &str) -> std::io::Result<()> {
+    let out = std::process::Command::new("/usr/bin/tccutil")
+        .args(["reset", "ScreenCapture", bundle_id])
+        .output()?;
+    if out.status.success() {
+        Ok(())
+    } else {
+        Err(std::io::Error::other(
+            String::from_utf8_lossy(&out.stderr).trim().to_string(),
+        ))
+    }
+}
+
 /// Opens System Settings at the Screen Recording pane.
 pub fn open_screen_recording_settings() -> std::io::Result<()> {
     let status = std::process::Command::new("open")

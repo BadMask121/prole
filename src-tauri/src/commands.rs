@@ -28,6 +28,7 @@ pub fn trigger_capture(app: AppHandle) {
 #[tauri::command]
 pub async fn start_capture(app: AppHandle) -> Result<(), String> {
     if CAPTURING.swap(true, Ordering::SeqCst) {
+        crate::logging::info("capture ignored: one is already open");
         return Ok(());
     }
     let result = run_capture(&app).await;
@@ -41,6 +42,7 @@ async fn run_capture(app: &AppHandle) -> Result<(), String> {
         return Err(permission_needed(app));
     }
 
+    crate::logging::info("capture started");
     // Get Prole's own windows out of the shot; put them back afterwards.
     let floating = crate::windows::floating_visible(app);
     let home = app
@@ -76,6 +78,7 @@ async fn run_capture(app: &AppHandle) -> Result<(), String> {
 
     match result {
         Ok(path) => {
+            crate::logging::info(format!("capture saved: {}", path.display()));
             let previous = app
                 .state::<CaptureState>()
                 .lock()
@@ -91,6 +94,7 @@ async fn run_capture(app: &AppHandle) -> Result<(), String> {
             })
         }
         Err(CaptureError::Cancelled) => {
+            crate::logging::info("capture cancelled");
             reopen_home();
             Ok(())
         }
@@ -156,6 +160,8 @@ pub fn copy_image(app: AppHandle, png_base64: String) -> Result<(), String> {
 #[derive(Serialize)]
 pub struct AppState {
     settings: serde_json::Value,
+    /// What triggers a capture, for display (⇧⌘4 when Prole has it).
+    capture_shortcut: String,
     screen_recording: bool,
     hotkey_error: Option<String>,
     floating_visible: bool,
@@ -167,6 +173,7 @@ pub struct AppState {
 pub fn get_state(app: AppHandle) -> AppState {
     AppState {
         settings: crate::settings::read_all(&app),
+        capture_shortcut: crate::settings::capture_shortcut(&app),
         screen_recording: crate::permission::has_screen_recording(),
         hotkey_error: app
             .state::<crate::apply::HotkeyError>()
@@ -248,9 +255,24 @@ pub fn open_screen_recording_settings() -> Result<(), String> {
         .map_err(|e| format!("Couldn't open System Settings: {e}"))
 }
 
+/// "Switched on but still refused": drop the stale entry, ask again (macOS
+/// shows its prompt and re-lists Prole), and open the pane to switch it on.
+#[tauri::command]
+pub fn reset_screen_recording(app: AppHandle) -> Result<(), String> {
+    let id = app.config().identifier.clone();
+    crate::permission::reset_screen_recording(&id)
+        .map_err(|e| format!("Couldn't reset the Screen Recording entry: {e}"))?;
+    crate::logging::info(format!("reset Screen Recording entry for {id}"));
+    crate::permission::request_screen_recording();
+    crate::permission::open_screen_recording_settings()
+        .map_err(|e| format!("Couldn't open System Settings: {e}"))
+}
+
 #[tauri::command]
 pub fn restart(app: AppHandle) {
     crate::logging::info("restarting at the user's request");
+    // restart() skips RunEvent::Exit; launch takes ⇧⌘4 again anyway.
+    crate::apply::release_macos_shortcut_if_enabled(&app);
     app.restart();
 }
 

@@ -7,6 +7,7 @@ mod notify;
 mod permission;
 mod placement;
 mod settings;
+mod system_shortcuts;
 mod tray;
 mod windows;
 
@@ -54,6 +55,7 @@ pub fn run() {
             commands::open_home,
             commands::open_log,
             commands::open_screen_recording_settings,
+            commands::reset_screen_recording,
             commands::restart,
             commands::quit,
         ])
@@ -73,6 +75,10 @@ pub fn run() {
         // Menu-bar app: closing the last window must not quit. Tauri sends
         // code=None for last-window-closed and Some(_) for app.exit() (Quit).
         RunEvent::ExitRequested { code: None, api, .. } => api.prevent_exit(),
+        RunEvent::Exit => {
+            apply::release_macos_shortcut_if_enabled(app);
+            logging::info("quit");
+        }
         // Opening Prole again (Finder, Spotlight, Dock) while it's running.
         // Always answer with a window — a menu-bar icon alone can be hidden
         // behind the notch, which made a running Prole look dead.
@@ -99,6 +105,7 @@ fn start(app: &AppHandle, autostart: bool) {
             notify::error(app, "Floating button unavailable", e.to_string(), None);
         }
     }
+    apply::claim_macos_shortcut_if_enabled(app);
     if let Err(e) = apply::register_hotkey(app) {
         notify::error(app, "Capture shortcut unavailable", e, Some(notify::Action::OpenHome));
     }

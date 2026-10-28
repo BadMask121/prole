@@ -41,8 +41,8 @@ function enter() {
 
 async function refreshTooltip() {
   try {
-    const state = await call<{ settings: { hotkey: string } }>("get_state");
-    const keys = shortcutKeys(state.settings.hotkey).join("");
+    const state = await call<{ capture_shortcut: string }>("get_state");
+    const keys = shortcutKeys(state.capture_shortcut).join("");
     snap.title = keys ? `Capture a region (${keys})` : "Capture a region";
   } catch (err) {
     logError("floating tooltip", err);

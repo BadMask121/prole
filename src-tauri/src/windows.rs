@@ -26,7 +26,7 @@ pub fn open_home(app: &AppHandle) -> tauri::Result<()> {
         w.emit("home-shown", ())?;
         return Ok(());
     }
-    WebviewWindowBuilder::new(app, "main", WebviewUrl::App("src/home.html".into()))
+    let w = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("src/home.html".into()))
         .title("Prole")
         .inner_size(440.0, 600.0)
         .resizable(false)
@@ -36,6 +36,12 @@ pub fn open_home(app: &AppHandle) -> tauri::Result<()> {
         .center()
         .focused(true)
         .build()?;
+    let handle = app.clone();
+    w.on_window_event(move |event| {
+        if matches!(event, WindowEvent::Focused(false) | WindowEvent::Destroyed) {
+            crate::apply::resume_hotkey_if_suspended(&handle);
+        }
+    });
     Ok(())
 }
 

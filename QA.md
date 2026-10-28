@@ -10,6 +10,7 @@ follow-up bd issues for failures. Errors and lifecycle events are logged to
 - [ ] Opening Prole again while it runs (Finder, Spotlight) brings the home window back.
 - [ ] Launch at login starts quietly: pill + menu bar icon, no home window.
 - [ ] Menu bar icon is a monochrome glyph that follows light/dark menu bar; no Dock icon.
+- [ ] On a full, notched menu bar the icon first appears near the clock (not hidden behind the notch); a ⌘-drag to a new spot sticks.
 - [ ] Tray menu: Capture Region (shows the shortcut) / Open Prole… / Show Floating Button (checkmark) / Quit Prole.
 - [ ] Quit from the tray and from the home window footer both exit.
 
@@ -33,6 +34,8 @@ follow-up bd issues for failures. Errors and lifecycle events are logged to
 - [ ] Floating button switch shows/hides the pill live and agrees with the tray checkmark.
 - [ ] Capture shortcut: click, press a combo → saved and works from any app; Esc cancels; ⌫ turns it off.
 - [ ] A combo already taken by another app shows an error under the shortcut and the old one stays.
+- [ ] Recording ⌘ + one key (⌘A) or a macOS screenshot combo (⇧⌘3/⇧⌘5) is refused with an explanation.
+- [ ] "Use ⇧⌘4" on: ⇧⌘4 opens Prole's crosshair, not a Desktop file. Quit Prole → ⇧⌘4 is macOS's again. Off → macOS's immediately.
 - [ ] Launch at login is reflected in System Settings → General → Login Items.
 
 ## Permission

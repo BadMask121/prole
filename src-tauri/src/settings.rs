@@ -12,6 +12,7 @@ fn defaults() -> Value {
         "floating_x": null,
         "floating_y": null,
         "hotkey": "CmdOrCtrl+Shift+A",
+        "use_macos_shortcut": false,
         "launch_at_login": false
     })
 }
@@ -63,6 +64,22 @@ pub fn hotkey(app: &AppHandle) -> String {
     get(app, "hotkey")
         .and_then(|v| v.as_str().map(String::from))
         .unwrap_or_default()
+}
+
+/// Whether Prole answers ⇧⌘4 (in place of macOS's area screenshot).
+pub fn use_macos_shortcut(app: &AppHandle) -> bool {
+    get(app, "use_macos_shortcut")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+}
+
+/// The shortcut to show in the UI: ⇧⌘4 when Prole has it, else the custom one.
+pub fn capture_shortcut(app: &AppHandle) -> String {
+    if use_macos_shortcut(app) {
+        crate::system_shortcuts::AREA_SHORTCUT.to_string()
+    } else {
+        hotkey(app)
+    }
 }
 
 /// Records the pill position (logical points). Called for every `Moved` event

@@ -7,7 +7,8 @@ import { toast } from "./lib/toast";
 reportUncaught("Prole");
 
 interface AppState {
-  settings: { floating_enabled: boolean; launch_at_login: boolean; hotkey: string };
+  settings: { floating_enabled: boolean; launch_at_login: boolean; hotkey: string; use_macos_shortcut: boolean };
+  capture_shortcut: string;
   screen_recording: boolean;
   hotkey_error: string | null;
   floating_visible: boolean;
@@ -27,6 +28,7 @@ const permHint = $("permHint");
 const permSteps = $("permSteps");
 const floating = $<HTMLInputElement>("floating_enabled");
 const launch = $<HTMLInputElement>("launch_at_login");
+const macShortcut = $<HTMLInputElement>("use_macos_shortcut");
 const hotkeyBtn = $<HTMLButtonElement>("hotkey");
 const hotkeyHint = $("hotkeyHint");
 const HOTKEY_HINT = "Works from any app";
@@ -45,9 +47,10 @@ function keycaps(target: HTMLElement, accelerator: string, empty: string) {
 
 function render(s: AppState) {
   state = s;
-  keycaps(ctaKeys, s.settings.hotkey, "");
+  keycaps(ctaKeys, s.capture_shortcut, "");
   floating.checked = s.floating_visible;
   launch.checked = s.settings.launch_at_login;
+  macShortcut.checked = s.settings.use_macos_shortcut;
   if (!recording) keycaps(hotkeyBtn, s.settings.hotkey, "None");
   hotkeyBtn.classList.toggle("is-error", Boolean(s.hotkey_error));
   hotkeyHint.textContent = s.hotkey_error ?? HOTKEY_HINT;
@@ -109,10 +112,27 @@ launch.addEventListener("change", () =>
   ),
 );
 
+macShortcut.addEventListener("change", () =>
+  attempt("Couldn't change ⇧⌘4", () =>
+    call("set_setting", { key: "use_macos_shortcut", value: macShortcut.checked }),
+  ),
+);
+
 $("openSettings").addEventListener("click", () =>
   attempt("Couldn't open System Settings", () => call("open_screen_recording_settings")),
 );
 $("restart").addEventListener("click", () => attempt("Couldn't restart Prole", () => call("restart")));
+$("resetPerm").addEventListener("click", () =>
+  attempt("Couldn't reset Screen Recording", async () => {
+    await call("reset_screen_recording");
+    toast({
+      kind: "success",
+      title: "Permission reset",
+      message: "Switch Prole on in the list that just opened, then press Restart.",
+      duration: 9000,
+    });
+  }),
+);
 $("openLog").addEventListener("click", () => attempt("Couldn't open the log", () => call("open_log")));
 $("quit").addEventListener("click", () => void call("quit"));
 
@@ -121,6 +141,7 @@ $("quit").addEventListener("click", () => void call("quit"));
 function startRecording() {
   if (recording) return;
   recording = true;
+  hotkeyBtn.focus(); // for the focus ring only; keys are read on the window
   hotkeyBtn.classList.add("is-recording");
   hotkeyBtn.textContent = "Press keys";
   hotkeyHint.textContent = "Esc to cancel · ⌫ to turn off";
@@ -141,17 +162,33 @@ async function stopRecording(next?: string) {
 }
 
 hotkeyBtn.addEventListener("click", startRecording);
-hotkeyBtn.addEventListener("blur", () => void stopRecording());
-hotkeyBtn.addEventListener("keydown", (e) => {
-  if (!recording) return;
-  e.preventDefault();
-  e.stopPropagation();
-  if (e.key === "Escape") return void stopRecording();
-  if (e.key === "Backspace" || e.key === "Delete") return void stopRecording("");
-  const accel = acceleratorFromEvent(e);
-  if (accel) void stopRecording(accel);
-  else hotkeyBtn.replaceChildren(...shortcutKeys(heldModifiers(e)).map(kbd));
-});
+
+// Keys are read on the window, not the button: WebKit doesn't focus a button
+// when it's clicked, so a listener on the button never heard a thing — and
+// recording (with the global shortcut suspended) never ended.
+window.addEventListener(
+  "keydown",
+  (e) => {
+    if (!recording) return;
+    e.preventDefault();
+    e.stopImmediatePropagation(); // Esc here cancels; it mustn't also close the window
+    if (e.key === "Escape") return void stopRecording();
+    if (e.key === "Backspace" || e.key === "Delete") return void stopRecording("");
+    const accel = acceleratorFromEvent(e);
+    if (accel) void stopRecording(accel);
+    else hotkeyBtn.replaceChildren(...shortcutKeys(heldModifiers(e)).map(kbd));
+  },
+  { capture: true },
+);
+
+// Clicking anywhere else cancels.
+document.addEventListener(
+  "pointerdown",
+  (e) => {
+    if (recording && !hotkeyBtn.contains(e.target as Node)) void stopRecording();
+  },
+  { capture: true },
+);
 
 function heldModifiers(e: KeyboardEvent) {
   return [e.ctrlKey && "Ctrl", e.altKey && "Alt", e.shiftKey && "Shift", e.metaKey && "Cmd"]
@@ -178,6 +215,7 @@ listen("permission-needed", async () => {
 });
 win.onFocusChanged(({ payload: focused }) => {
   if (focused) void refresh(); // permission may have changed in System Settings
+  else void stopRecording(); // leaving the window cancels a recording
 });
 
 // The intro stagger plays once; dropping the class afterwards frees

@@ -57,6 +57,12 @@
             <span class="step-text">Restart Prole so macOS applies it</span>
             <button class="btn btn-sm" id="restart">Restart</button>
           </li>
+          <li class="step-stale">
+            <span class="step-text">
+              Already on and still refused? macOS kept the permission for an older Prole.
+            </span>
+            <button class="btn btn-sm" id="resetPerm">Reset</button>
+          </li>
         </ol>
       </section>
 
@@ -67,6 +73,13 @@
             <span class="row-hint">A capture button that floats over every app</span>
           </span>
           <input type="checkbox" class="switch" id="floating_enabled" />
+        </label>
+        <label class="row">
+          <span class="row-text">
+            <span class="row-title">Use <span class="keys inline-keys"><span class="kbd">⇧</span><span class="kbd">⌘</span><span class="kbd">4</span></span></span>
+            <span class="row-hint">Opens Prole instead of saving to the Desktop</span>
+          </span>
+          <input type="checkbox" class="switch" id="use_macos_shortcut" />
         </label>
         <div class="row">
           <span class="row-text">

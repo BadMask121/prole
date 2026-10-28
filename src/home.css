@@ -145,6 +145,17 @@ body.home {
   font-weight: 560;
 }
 
+.inline-keys {
+  margin-left: 4px;
+  vertical-align: 1px;
+}
+
+.inline-keys .kbd {
+  min-width: 18px;
+  height: 18px;
+  font-size: 11px;
+}
+
 .row-hint {
   font-size: 12px;
   color: var(--text-dim);
@@ -224,6 +235,18 @@ body.home {
 }
 .steps li:nth-child(2) { animation-delay: 40ms; }
 .steps li:nth-child(3) { animation-delay: 80ms; }
+.steps li:nth-child(4) { animation-delay: 120ms; }
+
+/* The "already on" escape hatch reads as a footnote, not a fourth step. */
+.steps li.step-stale {
+  background: none;
+  padding-left: 6px;
+}
+
+.step-stale .step-text {
+  font-size: 12px;
+  color: var(--text-faint);
+}
 
 .step-n {
   display: grid;

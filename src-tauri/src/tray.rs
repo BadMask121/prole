@@ -9,7 +9,32 @@ pub struct Items {
     floating: CheckMenuItem<Wry>,
 }
 
+/// macOS adds a new menu bar icon at the far left of the status area. With a
+/// full menu bar on a notched screen that spot is behind the notch, so Prole's
+/// icon was there but invisible. Seed a starting spot near the clock (points
+/// from the right edge) before the item exists; once the user ⌘-drags it,
+/// macOS saves their position under the same key and this leaves it alone.
+fn seed_menu_bar_position(app: &AppHandle) {
+    const KEY: &str = "NSStatusItem Preferred Position Item-0";
+    let domain = app.config().identifier.clone();
+    let defaults = |args: &[&str]| {
+        std::process::Command::new("/usr/bin/defaults")
+            .args(args)
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    };
+    if !defaults(&["read", &domain, KEY]) {
+        if defaults(&["write", &domain, KEY, "-float", "250"]) {
+            crate::logging::info("menu bar icon: seeded a position near the clock");
+        } else {
+            crate::logging::error("menu bar icon: couldn't seed its position");
+        }
+    }
+}
+
 pub fn build(app: &AppHandle) -> tauri::Result<()> {
+    seed_menu_bar_position(app);
     let capture = MenuItem::with_id(app, "capture", "Capture Region", true, None::<&str>)?;
     let open = MenuItem::with_id(app, "open", "Open Prole…", true, None::<&str>)?;
     let floating = CheckMenuItem::with_id(
@@ -56,7 +81,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
 pub fn sync(app: &AppHandle) {
     let Some(items) = app.try_state::<Items>() else { return };
     let _ = items.floating.set_checked(crate::settings::floating_enabled(app));
-    let hotkey = crate::settings::hotkey(app);
+    let hotkey = crate::settings::capture_shortcut(app);
     // The accelerator here is display-only (menu key equivalent); the real
     // global shortcut is registered in apply.rs. An unparseable one is skipped.
     if items.capture.set_accelerator(Some(hotkey.as_str())).is_err() {
