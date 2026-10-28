@@ -1,0 +1,14 @@
+{
+  "name": "prole-site",
+  "private": true,
+  "description": "prole.jeffrey.build: the landing page and the DMG downloads (Cloudflare Worker + static assets + R2).",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "node --test test/*.test.js"
+  },
+  "devDependencies": {
+    "wrangler": "^4.154.0"
+  }
+}
