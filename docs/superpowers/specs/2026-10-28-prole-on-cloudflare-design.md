@@ -27,7 +27,7 @@ bucket. Nothing is shared with any other project's Worker, bucket or domain.
 prole/
   site/
     wrangler.jsonc        Worker config: assets, R2 binding, custom domain
-    package.json          wrangler + vitest (dev only)
+    package.json          wrangler (dev only); tests use node:test
     release.json          the current release (written by release.sh, committed)
     src/worker.js         routes below
     test/worker.test.js   route tests with fake ASSETS/R2
@@ -70,11 +70,13 @@ copy without extended attributes, re-sign ad-hoc, strict-verify, make the DMG wi
 mount it and check signature, Applications link and both architectures. Then:
 
 1. **Preflight** (before building): clean git tree; `package.json`, `Cargo.toml` and
-   `tauri.conf.json` agree on the version; `wrangler whoami` succeeds; `HEAD
-   https://prole.jeffrey.build/download/Prole-<version>.dmg` is `404` (otherwise: bump the version).
+   `tauri.conf.json` agree on the version; `wrangler whoami` succeeds; the version is not already in
+   `site/release.json` (otherwise: bump the version).
 2. **Upload** the DMG: `wrangler r2 object put prole-downloads/Prole-<version>.dmg --remote`.
 3. **Write** `site/release.json`, then `wrangler deploy` from `site/`.
 4. **Commit** `site/release.json` as `chore(release): Prole <version>` (local commit; push as usual).
+   A version is "published" once it is in `site/release.json`; the preflight refuses it (no network
+   check, so an interrupted run can simply be repeated).
 5. **Verify over HTTPS:** versioned URL's sha256 equals the build's; `/download/Prole.dmg` is a
    `302` to it; `latest.json` reports the version; the page links the versioned file.
 
@@ -99,7 +101,7 @@ means redeploying an earlier Worker version.
 
 ## Testing
 
-- `site/test/worker.test.js` (vitest): page rewriting, each download route and status code,
+- `site/test/worker.test.js` (node:test): page rewriting, each download route and status code,
   redirect targets, `latest.json`, name filtering, `405`, missing object `404`, `release.json`
   validation, `Range` responses.
 - `release.sh --no-upload` builds and verifies without publishing.

@@ -67,10 +67,18 @@ pnpm test:all       # both
 
 ### Releasing
 
-`scripts/release.sh` builds a universal (Apple Silicon + Intel) `.dmg` locally and uploads it to the
-download host. See the script header for environment overrides. There is also `scripts/sign-dev.sh`
-and `scripts/create-signing-cert.sh` for a stable self-signed identity so the Screen Recording grant
-persists across dev iterations.
+Bump the version in `src-tauri/tauri.conf.json`, `package.json` and `src-tauri/Cargo.toml`, commit,
+then run `scripts/release.sh`. It builds and verifies a universal (Apple Silicon + Intel) `.dmg`,
+uploads it to Cloudflare R2, updates `site/release.json` and deploys the site
+([`site/`](site/), a Cloudflare Worker serving <https://prole.jeffrey.build>), then checks the live
+download. Needs `wrangler` logged in (`cd site && npx wrangler login`). See the script header for
+options.
+
+`scripts/install-local.sh` builds and installs Prole on your own Mac, signed with your Apple
+Development identity so the Screen Recording grant survives rebuilds. There are also
+`scripts/sign-dev.sh` and `scripts/create-signing-cert.sh` for a self-signed identity.
+
+The site has its own tests: `cd site && npm test`.
 
 ## Tech stack
 
