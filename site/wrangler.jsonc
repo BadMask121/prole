@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "prole-site",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-10-01",
+  // The page and its assets. The Worker runs first only where it fills in the
+  // current release (from release.json) or serves downloads from R2.
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page",
+    "run_worker_first": ["/", "/index.html", "/download/*"]
+  },
+  // DMGs are release artifacts, not site assets: Prole's own bucket.
+  "r2_buckets": [{ "binding": "DOWNLOADS", "bucket_name": "prole-downloads" }],
+  "routes": [{ "pattern": "prole.jeffrey.build", "custom_domain": true }],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": { "enabled": true }
+}
