@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
 #
-# Build the Prole DMG locally and upload it to the landing-page host, where
-# nginx serves it at /download/Prole.dmg (see apps/prole-site/).
+# Build the Prole DMG locally and publish it on the landing-page host, where
+# nginx serves /data/prole-releases at /download/ (see apps/prole-site/):
+#
+#   /download/Prole-<version>.dmg   the release itself; never overwritten
+#   /download/Prole.dmg             symlink to the newest release (old links)
+#   /download/latest.json           {version, file, url, sha256, size, commit,
+#                                   released}; the site reads it to point its
+#                                   download buttons at the versioned URL
+#
+# Bump "version" in src-tauri/tauri.conf.json (and package.json, Cargo.toml)
+# before releasing; publishing a version that already exists is refused.
 #
 # Why local (not CI): macOS bundles need a Mac, and building locally avoids the
 # com.apple.quarantine xattr that a downloaded-then-rebuilt artifact would carry.
@@ -23,12 +32,13 @@
 #   bash scripts/release.sh --no-upload   # build + verify only; prints the DMG path
 #   bash scripts/release.sh --dry-run     # print what would happen, do nothing
 #   ... --allow-dirty                     # release uncommitted changes (not recommended)
+#   ... --replace                         # re-publish an existing version (fixing a bad upload)
 #
 # Override the destination with env vars:
 #   PROLE_HOST       ssh host          (default: root@95.217.185.93)
 #   PROLE_REMOTE_DIR remote dir        (default: /data/prole-releases)
-#   PROLE_ARCHIVE_DIR previous DMGs    (default: /data/prole-releases-archive, not served)
-#   PROLE_URL        public URL        (default: https://prole.jeffrey.build/download/Prole.dmg)
+#   PROLE_ARCHIVE_DIR replaced DMGs    (default: /data/prole-releases-archive, not served)
+#   PROLE_BASE_URL   public base URL   (default: https://prole.jeffrey.build/download)
 #   PROLE_TARGET     rust target triple or "host"
 #                                      (default: universal-apple-darwin)
 #   PROLE_BUILD_DIR  cargo target dir  (default: ~/Library/Caches/prole-release/target)
@@ -38,10 +48,10 @@ set -euo pipefail
 PROLE_HOST="${PROLE_HOST:-root@95.217.185.93}"
 PROLE_REMOTE_DIR="${PROLE_REMOTE_DIR:-/data/prole-releases}"
 PROLE_ARCHIVE_DIR="${PROLE_ARCHIVE_DIR:-/data/prole-releases-archive}"
-PROLE_URL="${PROLE_URL:-https://prole.jeffrey.build/download/Prole.dmg}"
+PROLE_BASE_URL="${PROLE_BASE_URL:-https://prole.jeffrey.build/download}"
 PROLE_TARGET="${PROLE_TARGET:-universal-apple-darwin}"
 PROLE_BUILD_DIR="${PROLE_BUILD_DIR:-$HOME/Library/Caches/prole-release/target}"
-REMOTE_NAME="Prole.dmg"   # stable filename -> stable /download/Prole.dmg URL
+LATEST_NAME="Prole.dmg"   # stable alias: always the newest release
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -49,11 +59,13 @@ cd "$ROOT"
 DRY_RUN=0
 UPLOAD=1
 ALLOW_DIRTY=0
+REPLACE=0
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=1 ;;
     --no-upload) UPLOAD=0 ;;
     --allow-dirty) ALLOW_DIRTY=1 ;;
+    --replace) REPLACE=1 ;;
     *) echo "[x] Unknown option: $arg" >&2; exit 2 ;;
   esac
 done
@@ -72,6 +84,14 @@ VERSION="$(node -p "require('./src-tauri/tauri.conf.json').version")"
 COMMIT="$(git rev-parse --short HEAD)"
 OUT_DIR="$PROLE_BUILD_DIR/release-dmg"
 DMG_NAME="Prole_${VERSION}_${PROLE_TARGET}.dmg"
+REMOTE_NAME="Prole-${VERSION}.dmg"
+RELEASE_URL="$PROLE_BASE_URL/$REMOTE_NAME"
+
+[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "Version “$VERSION” in tauri.conf.json isn't x.y.z."
+for f in package.json src-tauri/Cargo.toml; do
+  grep -qE "\"version\": \"$VERSION\"|^version = \"$VERSION\"" "$f" \
+    || fail "$f doesn't say version $VERSION — keep it in step with tauri.conf.json."
+done
 
 echo "Prole release"
 echo "  version:   $VERSION (commit $COMMIT)"
@@ -79,8 +99,8 @@ echo "  target:    $PROLE_TARGET"
 echo "  dmg:       $OUT_DIR/$DMG_NAME"
 if [ "$UPLOAD" -eq 1 ]; then
   echo "  dest:      $PROLE_HOST:$PROLE_REMOTE_DIR/$REMOTE_NAME"
-  echo "  archive:   $PROLE_HOST:$PROLE_ARCHIVE_DIR/"
-  echo "  -> served: $PROLE_URL"
+  echo "  -> url:    $RELEASE_URL"
+  echo "  latest:    $PROLE_BASE_URL/$LATEST_NAME, $PROLE_BASE_URL/latest.json"
 fi
 
 if [ "$DRY_RUN" -eq 1 ]; then
@@ -92,8 +112,13 @@ fi
 if [ "$ALLOW_DIRTY" -eq 0 ] && [ -n "$(git status --porcelain)" ]; then
   fail "Uncommitted changes — a release should match a commit. Commit first, or pass --allow-dirty."
 fi
-if [ "$UPLOAD" -eq 1 ] && ! ssh -o BatchMode=yes -o ConnectTimeout=10 "$PROLE_HOST" true 2>/dev/null; then
-  fail "Can't SSH to $PROLE_HOST without a prompt. Load your key first: ssh-add --apple-use-keychain ~/.ssh/id_rsa"
+if [ "$UPLOAD" -eq 1 ]; then
+  ssh -o BatchMode=yes -o ConnectTimeout=10 "$PROLE_HOST" true 2>/dev/null \
+    || fail "Can't SSH to $PROLE_HOST without a prompt. Load your key first: ssh-add --apple-use-keychain ~/.ssh/id_rsa"
+  # A published version is immutable: people may already have that exact file.
+  if [ "$REPLACE" -eq 0 ] && ssh "$PROLE_HOST" "test -e '$PROLE_REMOTE_DIR/$REMOTE_NAME'"; then
+    fail "$REMOTE_NAME is already published. Bump the version, or pass --replace to overwrite it."
+  fi
 fi
 
 # ── Build ─────────────────────────────────────────────────────────────
@@ -124,7 +149,8 @@ codesign --verify --strict --deep "$STAGE/root/Prole.app" \
 echo "-> Creating $DMG_NAME"
 mkdir -p "$OUT_DIR"
 DMG="$OUT_DIR/$DMG_NAME"
-hdiutil create -volname "Prole" -srcfolder "$STAGE/root" -fs HFS+ -format UDZO -ov "$DMG" >/dev/null
+hdiutil create -volname "Prole" -srcfolder "$STAGE/root" -fs HFS+ -format UDZO \
+  -imagekey zlib-level=9 -ov "$DMG" >/dev/null
 
 # ── Verify what users will actually get ───────────────────────────────
 echo "-> Verifying the DMG"
@@ -153,21 +179,56 @@ if [ "$UPLOAD" -eq 0 ]; then
 fi
 
 # ── Upload ────────────────────────────────────────────────────────────
-echo "-> Uploading to ${PROLE_HOST}"
-# Keep the outgoing DMG (outside the served dir) so a release can be rolled back.
-ssh "$PROLE_HOST" "mkdir -p '$PROLE_REMOTE_DIR' '$PROLE_ARCHIVE_DIR' && \
-  if [ -f '$PROLE_REMOTE_DIR/$REMOTE_NAME' ]; then \
-    cp -p '$PROLE_REMOTE_DIR/$REMOTE_NAME' \"$PROLE_ARCHIVE_DIR/Prole-\$(date -u +%Y%m%dT%H%M%SZ).dmg\"; \
-  fi"
+R="$PROLE_REMOTE_DIR"
+STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+echo "-> Uploading $REMOTE_NAME to ${PROLE_HOST}"
+# With --replace, keep the copy being replaced (outside the served dir). A
+# Prole.dmg that is still a plain file predates versioned releases; keep it too
+# before it becomes a symlink.
+ssh "$PROLE_HOST" "mkdir -p '$R' '$PROLE_ARCHIVE_DIR' && cd '$R' && \
+  if [ -f '$REMOTE_NAME' ]; then cp -p '$REMOTE_NAME' '$PROLE_ARCHIVE_DIR/Prole-$VERSION-replaced-$STAMP.dmg'; fi && \
+  if [ -f '$LATEST_NAME' ] && [ ! -L '$LATEST_NAME' ]; then cp -p '$LATEST_NAME' '$PROLE_ARCHIVE_DIR/Prole-unversioned-$STAMP.dmg'; fi"
 # Upload to a temp name then move, so a download mid-upload never gets a partial file.
-scp -q "$DMG" "$PROLE_HOST:$PROLE_REMOTE_DIR/.$REMOTE_NAME.tmp"
-REMOTE_SHA="$(ssh "$PROLE_HOST" "mv '$PROLE_REMOTE_DIR/.$REMOTE_NAME.tmp' '$PROLE_REMOTE_DIR/$REMOTE_NAME' && sha256sum '$PROLE_REMOTE_DIR/$REMOTE_NAME' | cut -d' ' -f1")"
+scp -q "$DMG" "$PROLE_HOST:$R/.$REMOTE_NAME.tmp"
+REMOTE_SHA="$(ssh "$PROLE_HOST" "cd '$R' && mv -f '.$REMOTE_NAME.tmp' '$REMOTE_NAME' && sha256sum '$REMOTE_NAME' | cut -d' ' -f1")"
 [ "$REMOTE_SHA" = "$SHA" ] || fail "Uploaded file checksum $REMOTE_SHA != local $SHA"
 
-# ── Confirm the public URL serves it ──────────────────────────────────
-echo "-> Checking $PROLE_URL"
-LIVE_SHA="$(curl -fsSL "$PROLE_URL" | shasum -a 256 | cut -d' ' -f1)"
-[ "$LIVE_SHA" = "$SHA" ] || fail "Live download checksum $LIVE_SHA != released $SHA (cache? wrong mount?)"
+# Manifest the site reads to link the versioned file.
+SIZE="$(stat -f %z "$DMG")"
+cat > "$STAGE/latest.json" <<JSON
+{
+  "version": "$VERSION",
+  "file": "$REMOTE_NAME",
+  "url": "$RELEASE_URL",
+  "sha256": "$SHA",
+  "size": $SIZE,
+  "commit": "$COMMIT",
+  "released": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+JSON
+node -e "JSON.parse(require('fs').readFileSync('$STAGE/latest.json','utf8'))" || fail "latest.json isn't valid JSON"
+scp -q "$STAGE/latest.json" "$PROLE_HOST:$R/.latest.json.tmp"
 
-echo "[ok] Released Prole $VERSION ($COMMIT) — $PROLE_URL"
+# Point the alias and the manifest at the new release. Each is a rename, so a
+# visitor always gets a complete file; the alias is a relative symlink, which
+# nginx follows inside the mounted dir.
+echo "-> Making $REMOTE_NAME the latest"
+ssh "$PROLE_HOST" "cd '$R' && ln -sfn '$REMOTE_NAME' '.$LATEST_NAME.lnk' && mv -fT '.$LATEST_NAME.lnk' '$LATEST_NAME' \
+  && mv -f .latest.json.tmp latest.json"
+
+# ── Confirm the public URLs serve it ──────────────────────────────────
+check() { # url expected-sha
+  local got
+  got="$(curl -fsSL -H 'Cache-Control: no-cache' "$1" | shasum -a 256 | cut -d' ' -f1)"
+  [ "$got" = "$2" ] || fail "$1 serves $got, expected $2 (cache? wrong mount?)"
+  echo "   ok  $1"
+}
+echo "-> Checking the public URLs"
+check "$RELEASE_URL" "$SHA"
+check "$PROLE_BASE_URL/$LATEST_NAME" "$SHA"
+LIVE_VERSION="$(curl -fsSL -H 'Cache-Control: no-cache' "$PROLE_BASE_URL/latest.json" | node -pe "JSON.parse(require('fs').readFileSync(0,'utf8')).version")"
+[ "$LIVE_VERSION" = "$VERSION" ] || fail "latest.json says $LIVE_VERSION, expected $VERSION"
+echo "   ok  $PROLE_BASE_URL/latest.json ($LIVE_VERSION)"
+
+echo "[ok] Released Prole $VERSION ($COMMIT) — $RELEASE_URL"
 echo "     sha256 $SHA"
