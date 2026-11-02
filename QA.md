@@ -29,6 +29,10 @@ follow-up bd issues for failures. Errors and lifecycle events are logged to
 - [ ] ⌘Z / ⇧⌘Z undo/redo, Clear is undoable. Esc with markup asks for a second Esc.
 - [ ] Copy (button, ⌘C, ⌘↩) morphs to "Copied", the editor closes, and a "Copied to clipboard" toast appears.
 - [ ] Paste into Claude (or anywhere) shows the annotated image.
+- [ ] Save (button, ⌘S) opens the save panel as a sheet on the editor, named `Prole <date> at <time>.png`, in the last folder saved to (first time: the macOS screenshot folder, else Desktop).
+- [ ] Saved file opens in Preview with the markup; the editor stays open with a "Saved to <folder>" toast whose Show in Finder selects the file. Cancel in the panel → nothing, no toast.
+- [ ] After saving, one Esc closes the editor (no discard warning); new markup after the save brings the warning back.
+- [ ] At the window's narrowest, the toolbar doesn't overlap: Cancel hides and Save shows just its icon.
 
 ## Home window settings
 - [ ] Floating button switch shows/hides the pill live and agrees with the tray checkmark.

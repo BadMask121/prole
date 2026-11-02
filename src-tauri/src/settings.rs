@@ -13,7 +13,8 @@ fn defaults() -> Value {
         "floating_y": null,
         "hotkey": "CmdOrCtrl+Shift+A",
         "use_macos_shortcut": false,
-        "launch_at_login": false
+        "launch_at_login": false,
+        "save_dir": null
     })
 }
 

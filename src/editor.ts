@@ -2,6 +2,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { call, logError, reportUncaught } from "./lib/ipc";
 import { toast } from "./lib/toast";
+import { baseName, folderName, screenshotFileName } from "./lib/filename";
 
 reportUncaught("the editor");
 
@@ -49,6 +50,7 @@ const stage = $("stage");
 const stageMsg = $("stageMsg");
 const dims = $("dims");
 const copyBtn = $<HTMLButtonElement>("copy");
+const saveBtn = $<HTMLButtonElement>("save");
 const undoBtn = $<HTMLButtonElement>("undo");
 const redoBtn = $<HTMLButtonElement>("redo");
 const clearBtn = $<HTMLButtonElement>("clear");
@@ -67,6 +69,10 @@ let textSize = Math.round(26 * DPR);
 let drawing: Shape | null = null;
 let textInput: HTMLInputElement | null = null;
 let copying = false;
+let saving = false;
+/** The markup as of the last save. History swaps whole arrays, so identity
+ * tells whether what's on screen is on disk (and survives undo/redo). */
+let savedShapes: Shape[] | null = null;
 let frame = 0;
 
 // ── History ───────────────────────────────────────────────────────
@@ -133,6 +139,7 @@ async function loadCapture() {
     });
     baseImage = img;
     shapes = [];
+    savedShapes = null;
     undoStack = [];
     redoStack = [];
     canvas.width = img.naturalWidth;
@@ -410,14 +417,57 @@ clearBtn.addEventListener("click", () => {
 // ── Copy / close ──────────────────────────────────────────────────
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** The canvas as PNG base64 — exactly what's on screen, markup included. */
+function exportPng() {
+  return canvas.toDataURL("image/png").split(",")[1];
+}
+
+let savedTimer = 0;
+/** Save stays in the editor (you may still want to copy), so it confirms with
+ * a toast that can reveal the file instead of closing like Copy does. */
+async function onSave() {
+  if (!baseImage || saving || copying) return;
+  textInput?.blur(); // commit an in-progress label first
+  saving = true;
+  window.clearTimeout(savedTimer);
+  saveBtn.dataset.state = "busy";
+  try {
+    const path = await call<string | null>("save_image", {
+      pngBase64: exportPng(),
+      fileName: screenshotFileName(new Date()),
+    });
+    if (!path) {
+      saveBtn.dataset.state = "idle"; // cancelled in the save panel
+      return;
+    }
+    savedShapes = shapes;
+    saveBtn.dataset.state = "done";
+    savedTimer = window.setTimeout(() => (saveBtn.dataset.state = "idle"), 1600);
+    toast({
+      kind: "success",
+      title: `Saved to ${folderName(path)}`,
+      message: baseName(path),
+      action: {
+        label: "Show in Finder",
+        run: () => void call("reveal_file", { path }).catch((e) => logError("reveal saved file", e)),
+      },
+    });
+  } catch (e) {
+    logError("save", e);
+    saveBtn.dataset.state = "idle";
+    toast({ kind: "error", title: "Couldn't save the image", message: (e as Error).message });
+  } finally {
+    saving = false;
+  }
+}
+
 async function onCopy() {
-  if (!baseImage || copying) return;
+  if (!baseImage || copying || saving) return;
   textInput?.blur(); // commit an in-progress label first
   copying = true;
   copyBtn.dataset.state = "busy";
   try {
-    const b64 = canvas.toDataURL("image/png").split(",")[1];
-    await call("copy_image", { pngBase64: b64 });
+    await call("copy_image", { pngBase64: exportPng() });
     copyBtn.dataset.state = "done";
     // Hold "Copied" long enough to read, then get out of the way.
     await sleep(reduceMotion.matches ? 250 : 450);
@@ -431,9 +481,9 @@ async function onCopy() {
 }
 
 let discardArmed = 0;
-/** Esc closes, but with markup on the canvas it asks for a second press. */
+/** Esc closes, but with unsaved markup on the canvas it asks for a second press. */
 function requestClose() {
-  if (shapes.length && !discardArmed) {
+  if (shapes.length && shapes !== savedShapes && !discardArmed) {
     toast({ kind: "error", title: "Press Esc again to discard your markup", duration: 2000 });
     discardArmed = window.setTimeout(() => (discardArmed = 0), 2000);
     return;
@@ -442,6 +492,7 @@ function requestClose() {
 }
 
 copyBtn.addEventListener("click", onCopy);
+saveBtn.addEventListener("click", onSave);
 $("cancel").addEventListener("click", () => void win.close());
 
 window.addEventListener("keydown", (e) => {
@@ -455,6 +506,9 @@ window.addEventListener("keydown", (e) => {
   } else if (mod && (key === "c" || key === "enter")) {
     e.preventDefault();
     void onCopy();
+  } else if (mod && key === "s") {
+    e.preventDefault();
+    void onSave();
   } else if (mod && key === "w") {
     e.preventDefault();
     void win.close();
@@ -468,6 +522,8 @@ window.addEventListener("keydown", (e) => {
 listen("capture-updated", () => {
   copying = false;
   copyBtn.dataset.state = "idle";
+  window.clearTimeout(savedTimer);
+  saveBtn.dataset.state = "idle";
   void loadCapture();
 });
 

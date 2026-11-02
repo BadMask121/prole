@@ -156,6 +156,24 @@ pub fn copy_image(app: AppHandle, png_base64: String) -> Result<(), String> {
     }
 }
 
+/// Save panel → PNG on disk. Returns the saved path, or `None` if cancelled.
+#[tauri::command]
+pub async fn save_image(
+    window: tauri::WebviewWindow,
+    png_base64: String,
+    file_name: String,
+) -> Result<Option<String>, String> {
+    crate::save::save_png(window, png_base64, file_name)
+        .await
+        .map(|saved| saved.map(|p| p.display().to_string()))
+        .inspect_err(|e| crate::logging::error(format!("save failed: {e}")))
+}
+
+#[tauri::command]
+pub fn reveal_file(path: String) -> Result<(), String> {
+    crate::save::reveal(std::path::Path::new(&path))
+}
+
 /// Everything the home window shows.
 #[derive(Serialize)]
 pub struct AppState {

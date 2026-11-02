@@ -6,6 +6,7 @@ mod logging;
 mod notify;
 mod permission;
 mod placement;
+mod save;
 mod settings;
 mod system_shortcuts;
 mod tray;
@@ -31,6 +32,7 @@ pub fn run() {
         .manage(apply::HotkeyError::default())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec![AUTOSTART_ARG]),
@@ -45,6 +47,8 @@ pub fn run() {
             commands::start_capture,
             commands::get_capture,
             commands::copy_image,
+            commands::save_image,
+            commands::reveal_file,
             commands::get_state,
             commands::set_setting,
             commands::set_hotkey_suspended,
