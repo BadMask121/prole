@@ -166,6 +166,13 @@ body.home {
   color: var(--danger);
 }
 
+/* A long path ends in "…"; the full one is in the tooltip. */
+.folder-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── Screen Recording status ──────────────────────────────────── */
 .perm-head {
   display: flex;

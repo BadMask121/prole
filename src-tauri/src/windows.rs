@@ -54,7 +54,8 @@ pub fn open_editor(app: &AppHandle) -> tauri::Result<()> {
     WebviewWindowBuilder::new(app, "editor", WebviewUrl::App("src/editor.html".into()))
         .title("Prole — Markup")
         .inner_size(1040.0, 760.0)
-        .min_inner_size(720.0, 480.0)
+        // Narrowest the toolbar fits with the text tool's size controls out.
+        .min_inner_size(840.0, 480.0)
         .title_bar_style(TitleBarStyle::Overlay)
         .hidden_title(true)
         .center()

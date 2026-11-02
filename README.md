@@ -24,7 +24,7 @@ It captures **pixels and your notes only**. No DOM, no browser extension, no sou
 
 1. **Snip it.** Trigger from the always-on-top floating button, the menu bar, or a global hotkey, then draw a box around anything on screen.
 2. **Mark it up.** Add rectangles, arrows, and a freehand pen, and use the text tool to write your question (at any size) right on the image.
-3. **Paste it anywhere.** Hit Copy and the annotated image lands on your clipboard. Paste it into Claude, ChatGPT, Slack, email, or any app that accepts an image.
+3. **Paste it anywhere.** Hit Copy and the annotated image lands on your clipboard. Paste it into Claude, ChatGPT, Slack, email, or any app that accepts an image. Or hit Save (⌘S) to keep it as a PNG in your save folder (pick it in Prole's window; ⇧⌘S asks where).
 
 ## Features
 

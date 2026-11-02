@@ -218,12 +218,34 @@ body.editor {
   flex: none;
 }
 
-/* Copy: the label morphs to "Copied". Both faces share one grid cell and
-   crossfade with a little blur, which reads as one button changing state
-   rather than two labels swapping. */
-.copy {
+/* Save / Copy: the label morphs to "Saved" / "Copied". Both faces share one
+   grid cell and crossfade with a little blur, which reads as one button
+   changing state rather than two labels swapping. */
+.morph {
   display: inline-grid;
+}
+
+.copy {
   min-width: 92px;
+}
+
+.save {
+  min-width: 84px;
+}
+
+/* Narrow window: the toolbar can't hold every label. Esc / ⌘W still close,
+   and Save keeps its icon and tooltip. */
+@media (max-width: 959px) {
+  #cancel {
+    display: none;
+  }
+  .save {
+    min-width: 0;
+    padding: 0 9px;
+  }
+  .save .label {
+    display: none;
+  }
 }
 
 .copy-face {
@@ -243,15 +265,15 @@ body.editor {
   height: 15px;
 }
 
-.copy[data-state="idle"] [data-face="done"],
-.copy[data-state="busy"] [data-face="done"],
-.copy[data-state="done"] [data-face="idle"] {
+.morph[data-state="idle"] [data-face="done"],
+.morph[data-state="busy"] [data-face="done"],
+.morph[data-state="done"] [data-face="idle"] {
   opacity: 0;
   filter: blur(2px);
   transform: scale(0.9);
 }
 
-.copy[data-state="busy"] [data-face="idle"] {
+.morph[data-state="busy"] [data-face="idle"] {
   opacity: 0.6;
 }
 

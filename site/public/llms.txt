@@ -8,7 +8,7 @@ Prole runs on macOS 12 or later (universal, Apple Silicon and Intel). It isn't n
 
 1. Hit your hotkey or the menu bar icon, then draw a box around anything on screen.
 2. Mark it up with boxes, arrows, and a freehand pen. Use the text tool to write your question right on the image.
-3. Hit Copy. The image is on your clipboard. Paste it into Claude, ChatGPT, Slack, email, or any app that takes an image.
+3. Hit Copy. The image is on your clipboard. Paste it into Claude, ChatGPT, Slack, email, or any app that takes an image. Or press ⌘S to save it as a PNG in a folder you pick (⇧⌘S asks where each time).
 
 ## Key facts
 

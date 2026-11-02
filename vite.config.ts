@@ -37,4 +37,8 @@ export default defineConfig(async () => ({
       },
     },
   },
+  // The app's tests only: site/ is the Worker, tested with `node --test` in its own package.
+  test: {
+    include: ["src/**/*.test.ts"],
+  },
 }));
