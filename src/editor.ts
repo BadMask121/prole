@@ -423,9 +423,11 @@ function exportPng() {
 }
 
 let savedTimer = 0;
-/** Save stays in the editor (you may still want to copy), so it confirms with
- * a toast that can reveal the file instead of closing like Copy does. */
-async function onSave() {
+/** Saves into the save folder (set in Prole's home window), or asks where
+ * with the save panel when `ask` is set (⇧⌘S, ⌥/⇧-click). Save stays in the
+ * editor (you may still want to copy), so it confirms with a toast that can
+ * reveal the file instead of closing like Copy does. */
+async function onSave(ask = false) {
   if (!baseImage || saving || copying) return;
   textInput?.blur(); // commit an in-progress label first
   saving = true;
@@ -435,6 +437,7 @@ async function onSave() {
     const path = await call<string | null>("save_image", {
       pngBase64: exportPng(),
       fileName: screenshotFileName(new Date()),
+      ask,
     });
     if (!path) {
       saveBtn.dataset.state = "idle"; // cancelled in the save panel
@@ -492,7 +495,7 @@ function requestClose() {
 }
 
 copyBtn.addEventListener("click", onCopy);
-saveBtn.addEventListener("click", onSave);
+saveBtn.addEventListener("click", (e) => void onSave(e.altKey || e.shiftKey));
 $("cancel").addEventListener("click", () => void win.close());
 
 window.addEventListener("keydown", (e) => {
@@ -508,7 +511,7 @@ window.addEventListener("keydown", (e) => {
     void onCopy();
   } else if (mod && key === "s") {
     e.preventDefault();
-    void onSave();
+    void onSave(e.shiftKey);
   } else if (mod && key === "w") {
     e.preventDefault();
     void win.close();

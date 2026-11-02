@@ -12,6 +12,8 @@ interface AppState {
   screen_recording: boolean;
   hotkey_error: string | null;
   floating_visible: boolean;
+  save_folder: string;
+  save_folder_missing: boolean;
   version: string;
   log_path: string;
 }
@@ -32,6 +34,7 @@ const macShortcut = $<HTMLInputElement>("use_macos_shortcut");
 const hotkeyBtn = $<HTMLButtonElement>("hotkey");
 const hotkeyHint = $("hotkeyHint");
 const HOTKEY_HINT = "Works from any app";
+const saveFolderHint = $("saveFolderHint");
 
 let state: AppState | null = null;
 let recording = false;
@@ -55,6 +58,12 @@ function render(s: AppState) {
   hotkeyBtn.classList.toggle("is-error", Boolean(s.hotkey_error));
   hotkeyHint.textContent = s.hotkey_error ?? HOTKEY_HINT;
   hotkeyHint.classList.toggle("is-error", Boolean(s.hotkey_error));
+  // Just the path: a long one is cut off at the end, so nothing may follow it.
+  saveFolderHint.textContent = s.save_folder_missing ? `Not found: ${s.save_folder}` : s.save_folder;
+  saveFolderHint.title = s.save_folder_missing
+    ? `${s.save_folder} isn't there, so ⌘S will ask where to save`
+    : `⌘S in the editor saves to ${s.save_folder}`;
+  saveFolderHint.classList.toggle("is-error", s.save_folder_missing);
 
   perm.dataset.state = s.screen_recording ? "ok" : "missing";
   permTitle.textContent = s.screen_recording ? "Screen Recording allowed" : "Screen Recording is off";
@@ -116,6 +125,10 @@ macShortcut.addEventListener("change", () =>
   attempt("Couldn't change ⇧⌘4", () =>
     call("set_setting", { key: "use_macos_shortcut", value: macShortcut.checked }),
   ),
+);
+
+$("saveFolder").addEventListener("click", () =>
+  attempt("Couldn't change the save folder", () => call("choose_save_folder")),
 );
 
 $("openSettings").addEventListener("click", () =>

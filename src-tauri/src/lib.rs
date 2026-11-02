@@ -48,6 +48,7 @@ pub fn run() {
             commands::get_capture,
             commands::copy_image,
             commands::save_image,
+            commands::choose_save_folder,
             commands::reveal_file,
             commands::get_state,
             commands::set_setting,

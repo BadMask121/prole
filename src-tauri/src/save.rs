@@ -1,66 +1,120 @@
-//! Saving the annotated capture to a PNG the user picks in the save panel.
+//! Saving the annotated capture as a PNG: straight into the save folder
+//! (⌘S), or wherever the user points the save panel (⇧⌘S).
 
 use std::path::{Path, PathBuf};
 
 use base64::Engine;
 use tauri::{AppHandle, Manager, WebviewWindow};
-use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_dialog::{DialogExt, FilePath};
 
-/// Settings key for the folder the last save went to.
+/// Settings key for the folder picked in the home window (null = default).
 const SAVE_DIR: &str = "save_dir";
 
-/// Shows the save panel as a sheet on `window` and writes the PNG there.
-/// `Ok(None)` means the user cancelled.
+/// Writes the PNG into the save folder, or — when `ask` is set or that folder
+/// is gone — wherever the user picks in the save panel. Returns the saved
+/// path; `Ok(None)` means the user cancelled the panel.
 pub async fn save_png(
     window: WebviewWindow,
     png_base64: String,
     file_name: String,
+    ask: bool,
 ) -> Result<Option<PathBuf>, String> {
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(png_base64)
         .map_err(|e| format!("The image data is corrupt: {e}"))?;
     let app = window.app_handle().clone();
+    let folder = save_folder(&app);
 
+    let path = if !ask && folder.is_dir() {
+        unique_path(&folder, &file_name)
+    } else {
+        if !ask {
+            crate::logging::info(format!(
+                "save folder {} is missing; asking where to save",
+                folder.display()
+            ));
+        }
+        let start = first_existing_dir([Some(folder), default_folder(&app)]);
+        let mut panel = app
+            .dialog()
+            .file()
+            .set_parent(&window)
+            .set_file_name(file_name)
+            .add_filter("PNG image", &["png"]);
+        if let Some(dir) = start {
+            panel = panel.set_directory(dir);
+        }
+        let (tx, rx) = std::sync::mpsc::sync_channel(1);
+        panel.save_file(move |picked| {
+            let _ = tx.send(picked);
+        });
+        match wait_for(rx).await? {
+            Some(picked) => with_png_extension(picked.into_path().map_err(|e| e.to_string())?),
+            None => return Ok(None),
+        }
+    };
+
+    std::fs::write(&path, bytes)
+        .map_err(|e| format!("Couldn't write {}: {e}", path.display()))?;
+    crate::logging::info(format!("saved capture to {}", path.display()));
+    Ok(Some(path))
+}
+
+/// Folder picker for the home window's Save folder setting. Returns the new
+/// folder, or `Ok(None)` if the user cancelled.
+pub async fn choose_folder(window: WebviewWindow) -> Result<Option<PathBuf>, String> {
+    let app = window.app_handle().clone();
+    let start = first_existing_dir([Some(save_folder(&app)), default_folder(&app)]);
     let mut panel = app
         .dialog()
         .file()
         .set_parent(&window)
-        .set_file_name(file_name)
-        .add_filter("PNG image", &["png"]);
-    if let Some(dir) = start_dir(&app) {
+        .set_title("Save folder")
+        .set_can_create_directories(true);
+    if let Some(dir) = start {
         panel = panel.set_directory(dir);
     }
     let (tx, rx) = std::sync::mpsc::sync_channel(1);
-    panel.save_file(move |picked| {
+    panel.pick_folder(move |picked| {
         let _ = tx.send(picked);
     });
-    let picked = tauri::async_runtime::spawn_blocking(move || rx.recv().ok().flatten())
-        .await
-        .map_err(|e| e.to_string())?;
-    let Some(picked) = picked else {
+    let Some(picked) = wait_for(rx).await? else {
         return Ok(None);
     };
-
-    let path = with_png_extension(picked.into_path().map_err(|e| e.to_string())?);
-    std::fs::write(&path, bytes)
-        .map_err(|e| format!("Couldn't write {}: {e}", path.display()))?;
-    crate::logging::info(format!("saved capture to {}", path.display()));
-    if let Some(dir) = path.parent() {
-        let _ = crate::settings::set(&app, SAVE_DIR, dir.display().to_string().into());
-    }
-    Ok(Some(path))
+    let dir = picked.into_path().map_err(|e| e.to_string())?;
+    crate::settings::set(&app, SAVE_DIR, dir.display().to_string().into())?;
+    crate::logging::info(format!("save folder set to {}", dir.display()));
+    Ok(Some(dir))
 }
 
-/// Where the panel opens: the folder last saved to, else the folder macOS
-/// saves screenshots to, else the Desktop.
-fn start_dir(app: &AppHandle) -> Option<PathBuf> {
-    let home = app.path().home_dir().ok();
-    let last = crate::settings::get(app, SAVE_DIR)
-        .and_then(|v| v.as_str().map(PathBuf::from));
-    let screenshots = home
-        .as_deref()
-        .and_then(|h| macos_screenshot_dir().map(|d| expand_tilde(&d, h)));
-    first_existing_dir([last, screenshots, app.path().desktop_dir().ok()])
+/// The panel answers on its own thread; wait for it off the async runtime.
+async fn wait_for(
+    rx: std::sync::mpsc::Receiver<Option<FilePath>>,
+) -> Result<Option<FilePath>, String> {
+    tauri::async_runtime::spawn_blocking(move || rx.recv().ok().flatten())
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Where ⌘S saves: the folder picked in the home window, else the default.
+/// The picked folder is returned even if it's gone (unplugged drive), so the
+/// home window can say so instead of silently saving somewhere else.
+pub fn save_folder(app: &AppHandle) -> PathBuf {
+    crate::settings::get(app, SAVE_DIR)
+        .and_then(|v| v.as_str().map(PathBuf::from))
+        .or_else(|| default_folder(app))
+        .or_else(|| app.path().home_dir().ok())
+        .unwrap_or_else(|| PathBuf::from("/"))
+}
+
+/// The folder macOS saves screenshots to, else the Desktop.
+fn default_folder(app: &AppHandle) -> Option<PathBuf> {
+    let screenshots = app
+        .path()
+        .home_dir()
+        .ok()
+        .and_then(|h| macos_screenshot_dir().map(|d| expand_tilde(&d, &h)));
+    first_existing_dir([screenshots, app.path().desktop_dir().ok()])
 }
 
 /// `defaults read com.apple.screencapture location`; unset on a stock Mac.
@@ -80,10 +134,35 @@ fn expand_tilde(path: &str, home: &Path) -> PathBuf {
     }
 }
 
-/// The first candidate that is a folder that still exists (a saved folder
-/// can be deleted, or sit on a drive that's been unplugged).
+/// `/Users/me/Desktop` → `~/Desktop`, for showing a folder in the UI.
+pub fn display_path(path: &Path, home: Option<&Path>) -> String {
+    match home.and_then(|h| path.strip_prefix(h).ok()) {
+        Some(rest) if rest.as_os_str().is_empty() => "~".into(),
+        Some(rest) => format!("~/{}", rest.display()),
+        None => path.display().to_string(),
+    }
+}
+
+/// The first candidate that is a folder that still exists.
 fn first_existing_dir(candidates: impl IntoIterator<Item = Option<PathBuf>>) -> Option<PathBuf> {
     candidates.into_iter().flatten().find(|d| d.is_dir())
+}
+
+/// `dir/name`, or `dir/name (2).png`, `(3)`… if that's taken — two saves in
+/// the same second must not overwrite each other.
+fn unique_path(dir: &Path, name: &str) -> PathBuf {
+    let first = with_png_extension(dir.join(name));
+    if !first.exists() {
+        return first;
+    }
+    let stem = first
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    (2..)
+        .map(|n| dir.join(format!("{stem} ({n}).png")))
+        .find(|p| !p.exists())
+        .expect("an unused name")
 }
 
 /// The panel filters to PNG, but a name typed without an extension can still
@@ -128,11 +207,33 @@ mod tests {
     }
 
     #[test]
+    fn shows_home_folders_with_a_tilde() {
+        let home = Some(Path::new("/Users/me"));
+        assert_eq!(display_path(Path::new("/Users/me/Desktop"), home), "~/Desktop");
+        assert_eq!(display_path(Path::new("/Users/me"), home), "~");
+        assert_eq!(display_path(Path::new("/Users/meg/Desktop"), home), "/Users/meg/Desktop");
+        assert_eq!(display_path(Path::new("/Volumes/Shots"), None), "/Volumes/Shots");
+    }
+
+    #[test]
     fn skips_missing_folders() {
         let tmp = std::env::temp_dir();
         let gone = tmp.join("prole-no-such-folder-3f9a");
         assert_eq!(first_existing_dir([None, Some(gone), Some(tmp.clone())]), Some(tmp));
         assert_eq!(first_existing_dir([None, None]), None);
+    }
+
+    #[test]
+    fn never_overwrites_an_earlier_save() {
+        let dir = std::env::temp_dir().join(format!("prole-unique-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let name = "Prole 2026-11-02 at 09.04.07.png";
+        assert_eq!(unique_path(&dir, name), dir.join(name));
+        std::fs::write(dir.join(name), b"x").unwrap();
+        assert_eq!(unique_path(&dir, name), dir.join("Prole 2026-11-02 at 09.04.07 (2).png"));
+        std::fs::write(dir.join("Prole 2026-11-02 at 09.04.07 (2).png"), b"x").unwrap();
+        assert_eq!(unique_path(&dir, name), dir.join("Prole 2026-11-02 at 09.04.07 (3).png"));
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

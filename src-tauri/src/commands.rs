@@ -156,17 +156,28 @@ pub fn copy_image(app: AppHandle, png_base64: String) -> Result<(), String> {
     }
 }
 
-/// Save panel → PNG on disk. Returns the saved path, or `None` if cancelled.
+/// PNG on disk: into the save folder, or via the save panel when `ask` is
+/// set. Returns the saved path, or `None` if the panel was cancelled.
 #[tauri::command]
 pub async fn save_image(
     window: tauri::WebviewWindow,
     png_base64: String,
     file_name: String,
+    ask: bool,
 ) -> Result<Option<String>, String> {
-    crate::save::save_png(window, png_base64, file_name)
+    crate::save::save_png(window, png_base64, file_name, ask)
         .await
         .map(|saved| saved.map(|p| p.display().to_string()))
         .inspect_err(|e| crate::logging::error(format!("save failed: {e}")))
+}
+
+/// Folder picker for the Save folder setting; `None` if cancelled.
+#[tauri::command]
+pub async fn choose_save_folder(window: tauri::WebviewWindow) -> Result<Option<String>, String> {
+    crate::save::choose_folder(window)
+        .await
+        .map(|dir| dir.map(|d| d.display().to_string()))
+        .inspect_err(|e| crate::logging::error(format!("choosing save folder: {e}")))
 }
 
 #[tauri::command]
@@ -183,13 +194,21 @@ pub struct AppState {
     screen_recording: bool,
     hotkey_error: Option<String>,
     floating_visible: bool,
+    /// Where ⌘S in the editor saves, for display (~/Desktop).
+    save_folder: String,
+    /// The picked save folder is gone (deleted, or on an unplugged drive).
+    save_folder_missing: bool,
     version: &'static str,
     log_path: String,
 }
 
 #[tauri::command]
 pub fn get_state(app: AppHandle) -> AppState {
+    let save_folder = crate::save::save_folder(&app);
+    let home = app.path().home_dir().ok();
     AppState {
+        save_folder: crate::save::display_path(&save_folder, home.as_deref()),
+        save_folder_missing: !save_folder.is_dir(),
         settings: crate::settings::read_all(&app),
         capture_shortcut: crate::settings::capture_shortcut(&app),
         screen_recording: crate::permission::has_screen_recording(),
